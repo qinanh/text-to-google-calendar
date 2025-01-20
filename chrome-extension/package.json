@@ -1,0 +1,16 @@
+{
+  "name": "chrome-extension",
+  "version": "1.0.0",
+  "description": "A Chrome extension to send selected text to a specified URL.",
+  "main": "src/background.js",
+  "scripts": {
+    "build": "echo 'Build script not defined'",
+    "test": "echo 'Test script not defined'"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "manifest_version": 3,
+  "dependencies": {}
+}
