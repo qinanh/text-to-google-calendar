@@ -1,105 +1,106 @@
 # Google Calendar Event Creator
 
-## Overview
-This project provides a Flask-based web application to create Google Calendar events using user input processed via the OpenAI API. The application supports Google OAuth 2.0 for authorization and utilizes Let's Encrypt SSL certificates for secure deployment.
+A modernized Flask service that converts free-form text into structured Google Calendar events by combining the OpenAI Chat Completions API with the Google Calendar API. The service is production ready for Google Cloud Run deployments and still works for local development.
 
-## Prerequisites
-Before running the application, ensure you have the following:
+## Key Features
 
-- **Python 3.x** installed
-- **Flask** and dependencies
-- **Google Calendar API credentials** (`credentials.json`)
-- **OpenAI API key**
-- **Let's Encrypt SSL certificates**
+- **Modular architecture** – isolated modules for OpenAI requests, event parsing, and Google Calendar interactions.
+- **Environment-driven configuration** – secrets are injected via environment variables or a local `.env` file to keep credentials out of the source tree.
+- **Cloud Run ready** – includes a lean `Dockerfile`, gunicorn entrypoint, and health endpoint for managed deployments.
+- **Chrome extension integration** – the existing extension can keep posting payloads to `/create_event` with no additional work.
 
-## Setup Instructions
+## Requirements
 
-### 1. Obtain OpenAI API Key
-1. Visit [OpenAI's platform](https://platform.openai.com/).
-2. Sign in or create an account.
-3. Navigate to the API section to generate an API key.
-4. Replace `YOUR-OPENAI-API-KEY` in the code with your actual key.
+- Python 3.11+
+- Google Cloud project with the Calendar API enabled
+- OpenAI API key with access to the Chat Completions API
 
-### 2. Setup Google Calendar API
-1. Go to the [Google Cloud Console](https://console.developers.google.com/).
-2. Create a new project.
-3. Enable the Google Calendar API.
-4. Create OAuth 2.0 credentials and download the `credentials.json` file.
-5. Place `credentials.json` in the project directory.
-6. Add the following under **Authorized JavaScript origins** for browser-based requests:
-   - `http://localhost:5000`
-   - `https://yourdomain.com`
-7. Add the following under **Authorized redirect URIs**:
-   - `http://localhost:5000/oauth2callback`
-   - `https://yourdomain.com/oauth2callback`
+## Environment Setup
 
-### 3. Obtain SSL Certificates (Let's Encrypt)
-1. Install Certbot following the instructions for your web server and OS.
-2. Run the command to obtain certificates:
+1. Copy `.env.example` to `.env` and fill in the values:
    ```bash
-   sudo certbot certonly --standalone -d yourdomain.com
+   cp .env.example .env
    ```
-3. Replace `PATH/fullchain.pem` and `PATH/privkey.pem` in the code with your certificate paths.
+2. Update the following variables:
+   - `FLASK_SECRET_KEY` – any random string.
+   - `OPENAI_API_KEY` – your OpenAI key.
+   - `OPENAI_MODEL` – defaults to `gpt-3.5-turbo`, but any compatible chat model works.
+   - `GOOGLE_CLIENT_SECRETS` – path to the OAuth client JSON downloaded from Google Cloud Console.
+   - `GOOGLE_CREDENTIALS_CACHE` – file that will store refreshed credentials after completing the OAuth flow (defaults to `cred.json`).
+   - `DEFAULT_TIMEZONE` – IANA timezone used when parsing events.
 
-### 4. Install Dependencies
-Run the following command to install the required Python libraries:
-```bash
-pip install -r requirements.txt
-```
-
-### 5. Configure and Use Chrome Extension
-The Chrome extension files are available in the `extension/` folder of this repository.
-
-1. Open `extension/background.js` and modify the following line to point to your server:
-   ```javascript
-   const url = "https://yourdomain.com:5000/create_event"; // Replace with your URL
+3. Install dependencies:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   pip install -r requirements.txt
    ```
-2. Open `chrome://extensions/` in your Chrome browser.
-3. Enable Developer mode (toggle in the top-right corner).
-4. Click on **Load unpacked**, and select the `extension/` folder from the repository.
-5. The extension will be added to Chrome and ready to use.
-6. To use the extension, select text on a webpage, right-click, and choose **Send to Calendar** from the context menu.
 
-### 6. Run the Application
-Start the Flask application by running:
-```bash
-python app.py
+## Local Development
+
+1. Start the Flask server:
+   ```bash
+   python main.py
+   ```
+   The service listens on `http://127.0.0.1:8080`.
+
+2. Run the OAuth flow once to cache Google credentials:
+   - Visit `http://127.0.0.1:8080/authorize`.
+   - Complete the Google consent screen. `cred.json` will be created automatically (path configurable via `GOOGLE_CREDENTIALS_CACHE`).
+
+3. Create calendar events:
+   ```bash
+   curl -X POST http://127.0.0.1:8080/create_event \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Meeting with the product team tomorrow at 2pm for one hour"}'
+   ```
+
+## Deploying to Google Cloud Run
+
+1. Enable the required APIs:
+   ```bash
+   gcloud services enable run.googleapis.com secretmanager.googleapis.com cloudbuild.googleapis.com
+   ```
+
+2. Build and submit the container:
+   ```bash
+   gcloud builds submit --tag gcr.io/PROJECT_ID/text-to-google-calendar
+   ```
+
+3. Deploy to Cloud Run:
+   ```bash
+   gcloud run deploy text-to-google-calendar \
+     --image gcr.io/PROJECT_ID/text-to-google-calendar \
+     --platform managed \
+     --region REGION \
+     --allow-unauthenticated \
+     --set-env-vars OPENAI_API_KEY=your-key,FLASK_SECRET_KEY=prod-secret,GOOGLE_CLIENT_SECRETS=/secrets/credentials.json,GOOGLE_CREDENTIALS_CACHE=/secrets/cred.json
+   ```
+
+   Use Secret Manager and Cloud Run volumes for the Google credentials JSON files if preferred.
+
+4. After deployment, visit `<SERVICE_URL>/authorize` once to complete OAuth and populate the credentials cache.
+
+## Chrome Extension Integration
+
+The `chrome-extension/` directory contains the original background script. Update the `url` variable inside `background.js` to the new Cloud Run service URL and load it via **Load unpacked** in Chrome. Selecting any text and choosing **Send to Calendar** will call the `/create_event` endpoint.
+
+## File Overview
+
+- `app/` – Flask blueprints, configuration utilities, and API helpers.
+- `main.py` – entrypoint used both locally and by gunicorn inside Cloud Run.
+- `.env.example` – template for required environment variables.
+- `Dockerfile` – container definition optimized for Cloud Run.
+- `chrome-extension/` – optional Chrome extension that pushes selected text to the API.
+
+## Health Check
+
+Cloud Run can use `/health` for readiness probes. It returns:
+```json
+{"status": "ok"}
 ```
-The application will be accessible at `https://yourdomain.com:5000`.
-
-## Usage
-
-### 1. Authorize Google Calendar Access
-Visit the following URL in your browser to authorize access:
-```
-https://yourdomain.com:5000/authorize
-```
-After successful authorization, credentials will be saved to `cred.json`.
-
-### 2. Create an Event
-You can create an event using the Chrome extension:
-1. Select the desired text on any webpage.
-2. Right-click and choose **Send to Calendar** from the context menu.
-3. The event will be created, and a confirmation will be displayed.
-
-Alternatively, you can send a POST request with JSON input:
-```bash
-curl -X POST https://yourdomain.com:5000/create_event \
-    -H "Content-Type: application/json" \
-    -d '{"text": "Meeting with team at 10 AM on Monday"}'
-```
-The response will contain the Google Calendar event link.
-
-## Error Handling
-- Ensure that `cred.json` is present after authorization.
-- Verify API keys and credentials if encountering authentication issues.
-- Check the Flask application logs for detailed error messages.
-
-## Security Considerations
-- Keep `credentials.json` and `cred.json` secure.
-- Use environment variables instead of hardcoded keys.
-- Renew Let's Encrypt certificates regularly to avoid expiration.
 
 ## License
-This project is licensed under the MIT License.
 
+MIT License – see `LICENSE` for details.
