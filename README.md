@@ -1,106 +1,180 @@
-# Google Calendar Event Creator
+# Text to Google Calendar
 
-A modernized Flask service that converts free-form text into structured Google Calendar events by combining the OpenAI Chat Completions API with the Google Calendar API. The service is production ready for Google Cloud Run deployments and still works for local development.
+> Turn any text into a Google Calendar event with AI. A Chrome extension + lightweight backend that lets you select text on any webpage and instantly create a perfectly formatted calendar event.
 
-## Key Features
+🌐 **Website:** https://qinanh.github.io/text-to-gcal-site/
 
-- **Modular architecture** – isolated modules for OpenAI requests, event parsing, and Google Calendar interactions.
-- **Environment-driven configuration** – secrets are injected via environment variables or a local `.env` file to keep credentials out of the source tree.
-- **Cloud Run ready** – includes a lean `Dockerfile`, gunicorn entrypoint, and health endpoint for managed deployments.
-- **Chrome extension integration** – the existing extension can keep posting payloads to `/create_event` with no additional work.
+## Features
 
-## Requirements
+- 🖱️ **Right-click any text** to create or preview a calendar event
+- 🤖 **AI-powered parsing** of titles, dates, times, locations, attendees, recurrence, and more
+- 📅 **Multi-event support** — extract several events from one block of text
+- 🔐 **Multi-user by design** — each user signs in with their own Google account; the backend never stores credentials
+- 🎨 **Rich event support** — colors, reminders, Google Meet links, recurrence rules, and visibility settings
+- ⚡ **Self-hostable backend** — bring your own LLM provider (OpenAI, Qwen, or any OpenAI-compatible API)
 
-- Python 3.11+
-- Google Cloud project with the Calendar API enabled
-- OpenAI API key with access to the Chat Completions API
+## Architecture
 
-## Environment Setup
-
-1. Copy `.env.example` to `.env` and fill in the values:
-   ```bash
-   cp .env.example .env
-   ```
-2. Update the following variables:
-   - `FLASK_SECRET_KEY` – any random string.
-   - `OPENAI_API_KEY` – your OpenAI key.
-   - `OPENAI_MODEL` – defaults to `gpt-3.5-turbo`, but any compatible chat model works.
-   - `GOOGLE_CLIENT_SECRETS` – path to the OAuth client JSON downloaded from Google Cloud Console.
-   - `GOOGLE_CREDENTIALS_CACHE` – file that will store refreshed credentials after completing the OAuth flow (defaults to `cred.json`).
-   - `DEFAULT_TIMEZONE` – IANA timezone used when parsing events.
-
-3. Install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-
-## Local Development
-
-1. Start the Flask server:
-   ```bash
-   python main.py
-   ```
-   The service listens on `http://127.0.0.1:8080`.
-
-2. Run the OAuth flow once to cache Google credentials:
-   - Visit `http://127.0.0.1:8080/authorize`.
-   - Complete the Google consent screen. `cred.json` will be created automatically (path configurable via `GOOGLE_CREDENTIALS_CACHE`).
-
-3. Create calendar events:
-   ```bash
-   curl -X POST http://127.0.0.1:8080/create_event \
-     -H "Content-Type: application/json" \
-     -d '{"text": "Meeting with the product team tomorrow at 2pm for one hour"}'
-   ```
-
-## Deploying to Google Cloud Run
-
-1. Enable the required APIs:
-   ```bash
-   gcloud services enable run.googleapis.com secretmanager.googleapis.com cloudbuild.googleapis.com
-   ```
-
-2. Build and submit the container:
-   ```bash
-   gcloud builds submit --tag gcr.io/PROJECT_ID/text-to-google-calendar
-   ```
-
-3. Deploy to Cloud Run:
-   ```bash
-   gcloud run deploy text-to-google-calendar \
-     --image gcr.io/PROJECT_ID/text-to-google-calendar \
-     --platform managed \
-     --region REGION \
-     --allow-unauthenticated \
-     --set-env-vars OPENAI_API_KEY=your-key,FLASK_SECRET_KEY=prod-secret,GOOGLE_CLIENT_SECRETS=/secrets/credentials.json,GOOGLE_CREDENTIALS_CACHE=/secrets/cred.json
-   ```
-
-   Use Secret Manager and Cloud Run volumes for the Google credentials JSON files if preferred.
-
-4. After deployment, visit `<SERVICE_URL>/authorize` once to complete OAuth and populate the credentials cache.
-
-## Chrome Extension Integration
-
-The `chrome-extension/` directory contains the original background script. Update the `url` variable inside `background.js` to the new Cloud Run service URL and load it via **Load unpacked** in Chrome. Selecting any text and choosing **Send to Calendar** will call the `/create_event` endpoint.
-
-## File Overview
-
-- `app/` – Flask blueprints, configuration utilities, and API helpers.
-- `main.py` – entrypoint used both locally and by gunicorn inside Cloud Run.
-- `.env.example` – template for required environment variables.
-- `Dockerfile` – container definition optimized for Cloud Run.
-- `chrome-extension/` – optional Chrome extension that pushes selected text to the API.
-
-## Health Check
-
-Cloud Run can use `/health` for readiness probes. It returns:
-```json
-{"status": "ok"}
 ```
+┌──────────────────┐  Bearer token  ┌──────────────┐  AI parse   ┌────────────┐
+│ Chrome Extension │ ─────────────► │ Flask Backend│ ──────────► │  LLM API   │
+│                  │                │              │             └────────────┘
+│ • OAuth login    │                │ • Parse JSON │
+│ • Stores token   │                │ • Build event│  Insert event
+│ • Sends text     │ ◄───────────── │ • Forward to │ ──────────► Google Calendar
+└──────────────────┘   event link   │   Calendar   │             (with user's
+                                    └──────────────┘              own token)
+```
+
+- The extension handles **all** Google OAuth in the user's browser via `chrome.identity.launchWebAuthFlow`.
+- Each request to the backend carries the user's Google access token in the `Authorization` header.
+- The backend never stores user credentials — it just forwards events to Google Calendar using whatever token is presented.
+- Optional `X-API-Key` header gates backend access for self-hosted deployments.
+
+## Project Structure
+
+```
+.
+├── app/                    # Flask backend
+│   ├── __init__.py         # App factory
+│   ├── config.py           # Env-driven config
+│   ├── routes.py           # /create_event, /parse_event, /health
+│   ├── calendar_service.py # Google Calendar wrapper
+│   ├── event_parser.py     # LLM JSON → Calendar payload
+│   └── openai_client.py    # LLM API call
+├── chrome-extension/src/   # Chrome extension (Manifest V3)
+│   ├── manifest.json
+│   ├── background.js       # OAuth + API calls
+│   ├── popup.html / .js    # Settings UI + manual entry
+│   ├── content.js / .css   # In-page toast notifications
+│   └── images/             # Icons
+├── web/                    # Landing page (deployed via GitHub Pages)
+├── main.py                 # WSGI entrypoint
+├── Dockerfile
+└── requirements.txt
+```
+
+## Quick Start (Self-Hosted)
+
+### 1. Backend
+
+```bash
+git clone https://github.com/qinanh/text-to-google-calendar.git
+cd text-to-google-calendar
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY (or your OpenAI-compatible provider key)
+
+python main.py
+# Backend now listening on http://localhost:8080
+```
+
+### 2. Google OAuth Client (one-time setup)
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and create a project
+2. Enable the **Google Calendar API**
+3. Configure the **OAuth consent screen** (External, with Calendar scope)
+4. Create an **OAuth 2.0 Client ID** of type **Web application**
+5. Add an authorized redirect URI: `https://<your-extension-id>.chromiumapp.org/`
+   - You'll get the extension ID after loading the extension below — add it then
+6. Copy the **Client ID** (`xxxx.apps.googleusercontent.com`)
+7. Paste it into `chrome-extension/src/background.js` at `GOOGLE_CLIENT_ID`
+
+### 3. Chrome Extension
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select `chrome-extension/src/`
+4. Copy the extension ID shown on the card
+5. Go back to step 2.5 above and add `https://<that-id>.chromiumapp.org/` as a redirect URI in Google Cloud
+6. Click the extension icon → **Login with Google**
+7. Select text on any webpage → right-click → **Create Calendar Event**
+
+## Configuration
+
+### Backend (`.env`)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | API key for your LLM provider | _required_ |
+| `OPENAI_BASE_URL` | OpenAI-compatible API base URL | OpenAI |
+| `OPENAI_MODEL` | Model name | `gpt-3.5-turbo` |
+| `DEFAULT_TIMEZONE` | IANA timezone for parsed events | `America/Chicago` |
+| `API_KEYS` | Comma-separated list of accepted API keys (empty = open) | _empty_ |
+| `FLASK_SECRET_KEY` | Flask session secret | `change-me` |
+
+### Extension (Settings popup)
+
+- **Server URL** — backend address (default `http://localhost:8081`)
+- **Default Timezone** — IANA timezone
+
+## API
+
+### `POST /create_event`
+
+```http
+POST /create_event
+Authorization: Bearer <google-oauth-access-token>
+X-API-Key: <optional-backend-api-key>
+Content-Type: application/json
+
+{ "text": "Lunch with Alice next Friday at noon at The Cheesecake Factory" }
+```
+
+Response:
+```json
+{
+  "count": 1,
+  "events": [{
+    "eventId": "abc123",
+    "eventLink": "https://calendar.google.com/calendar/event?...",
+    "summary": "Lunch with Alice",
+    "start": {"dateTime": "2026-04-17T12:00:00", "timeZone": "America/Chicago"},
+    "end": {"dateTime": "2026-04-17T13:00:00", "timeZone": "America/Chicago"}
+  }]
+}
+```
+
+### `POST /parse_event`
+
+Same body as `/create_event` but returns the parsed event(s) without writing to Calendar (preview mode).
+
+### `GET /health`
+
+Returns `{"status": "ok"}`.
+
+## Deployment
+
+### Docker
+
+```bash
+docker build -t text-to-gcal .
+docker run -p 8080:8080 --env-file .env text-to-gcal
+```
+
+### Google Cloud Run
+
+```bash
+gcloud builds submit --tag gcr.io/PROJECT_ID/text-to-gcal
+gcloud run deploy text-to-gcal \
+  --image gcr.io/PROJECT_ID/text-to-gcal \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars OPENAI_API_KEY=...,API_KEYS=...
+```
+
+Then point the extension's **Server URL** at the Cloud Run URL.
+
+## Privacy
+
+- The extension stores your Google OAuth token only in your browser's local storage.
+- The backend does not persist user data; selected text is sent to the LLM for parsing and immediately discarded.
+- See the [Privacy Policy](https://qinanh.github.io/text-to-gcal-site/privacy.html) for details.
 
 ## License
 
-MIT License – see `LICENSE` for details.
+MIT — see [LICENSE](LICENSE).

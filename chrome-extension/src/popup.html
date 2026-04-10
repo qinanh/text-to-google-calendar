@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 380px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+    }
+    .header {
+      background: linear-gradient(135deg, #4285f4, #34a853);
+      color: white;
+      padding: 16px;
+      text-align: center;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; }
+    .header p { font-size: 11px; opacity: 0.85; margin-top: 4px; }
+
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .tab.active { color: #4285f4; border-bottom-color: #4285f4; }
+    .tab:hover { background: #f5f5f5; }
+
+    .panel { display: none; padding: 16px; }
+    .panel.active { display: block; }
+
+    .input-group { margin-bottom: 12px; }
+    .input-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    textarea, input[type="text"], input[type="url"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      transition: border-color 0.2s;
+    }
+    textarea:focus, input:focus {
+      outline: none;
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66,133,244,0.15);
+    }
+    textarea { min-height: 80px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #4285f4; color: white; }
+    .btn-primary:hover { background: #3367d6; }
+    .btn-primary:disabled { background: #a4c2f4; cursor: not-allowed; }
+    .btn-success { background: #34a853; color: white; }
+    .btn-success:hover { background: #2d9249; }
+    .btn-outline {
+      background: white;
+      color: #4285f4;
+      border: 1px solid #4285f4;
+    }
+    .btn-outline:hover { background: #e8f0fe; }
+    .btn-danger {
+      background: white;
+      color: #c5221f;
+      border: 1px solid #c5221f;
+    }
+    .btn-danger:hover { background: #fce8e6; }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+    .btn-row .btn { flex: 1; }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+    .status.success { display: block; background: #e6f4ea; color: #1e7e34; border: 1px solid #b7e1cd; }
+    .status.error { display: block; background: #fce8e6; color: #c5221f; border: 1px solid #f5c6cb; }
+    .status.loading { display: block; background: #e8f0fe; color: #1967d2; border: 1px solid #aecbfa; }
+
+    .event-preview {
+      margin-top: 12px;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      display: none;
+    }
+    .event-preview.show { display: block; }
+    .event-preview .field { margin-bottom: 6px; }
+    .event-preview .field-label { font-weight: 600; color: #555; }
+    .event-preview .field-value { color: #333; }
+    .event-link {
+      display: inline-block;
+      margin-top: 8px;
+      color: #4285f4;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .event-link:hover { text-decoration: underline; }
+
+    .settings-saved {
+      color: #34a853;
+      font-size: 11px;
+      margin-top: 6px;
+      display: none;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.6s linear infinite;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .auth-section {
+      margin-bottom: 12px;
+      padding: 10px;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    .auth-status {
+      font-size: 12px;
+      color: #666;
+    }
+    .auth-status.logged-in { color: #1e7e34; }
+    .auth-status.logged-out { color: #c5221f; }
+    .auth-section .btn { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Text to Google Calendar</h1>
+    <p>AI-powered event creation from any text</p>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="create">Create Event</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- Create Event Panel -->
+  <div class="panel active" id="panel-create">
+    <div class="auth-section">
+      <div class="auth-status" id="authStatus">Checking login status...</div>
+      <button class="btn btn-primary" id="btnLogin" style="display:none;">Login with Google</button>
+      <button class="btn btn-danger" id="btnLogout" style="display:none;">Logout</button>
+    </div>
+    <div class="input-group">
+      <label>Paste or type event details</label>
+      <textarea id="eventText" placeholder="e.g. Team meeting tomorrow at 3pm in Conference Room B for 1 hour"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" id="btnPreview">Preview</button>
+      <button class="btn btn-primary" id="btnCreate">Create Event</button>
+    </div>
+    <div class="event-preview" id="eventPreview"></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="panel" id="panel-settings">
+    <div class="input-group">
+      <label>Server URL</label>
+      <input type="url" id="serverUrl" placeholder="http://localhost:8081">
+    </div>
+    <div class="input-group">
+      <label>Default Timezone</label>
+      <input type="text" id="timezone" placeholder="America/Chicago">
+    </div>
+    <button class="btn btn-success" id="btnSave">Save Settings</button>
+    <div class="settings-saved" id="settingsSaved">Settings saved!</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

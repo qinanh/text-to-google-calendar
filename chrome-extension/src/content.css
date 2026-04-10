@@ -1,0 +1,71 @@
+.gcal-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  max-width: 360px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.gcal-toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gcal-toast-hide {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.gcal-toast-success {
+  background: #e6f4ea;
+  color: #1e7e34;
+  border: 1px solid #b7e1cd;
+}
+
+.gcal-toast-error {
+  background: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #f5c6cb;
+}
+
+.gcal-toast-msg {
+  flex: 1;
+}
+
+.gcal-toast-link {
+  color: #4285f4;
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gcal-toast-link:hover {
+  text-decoration: underline;
+}
+
+.gcal-toast-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.gcal-toast-close:hover {
+  opacity: 1;
+}
